@@ -764,6 +764,11 @@
           ],
           w: 8,
         },
+        // Four orientations share a total weight of 8, like the 2x2 square.
+        { id: "tdown", cells: [[0, 0], [1, 0], [2, 0], [1, 1]], w: 2 },
+        { id: "tup", cells: [[1, 0], [0, 1], [1, 1], [2, 1]], w: 2 },
+        { id: "tright", cells: [[0, 0], [0, 1], [1, 1], [0, 2]], w: 2 },
+        { id: "tleft", cells: [[1, 0], [0, 1], [1, 1], [1, 2]], w: 2 },
         {
           id: "h4",
           cells: [
