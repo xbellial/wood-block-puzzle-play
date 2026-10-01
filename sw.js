@@ -1,8 +1,11 @@
 "use strict";
-const CACHE = "quiet-workshop-v4";
+const PREFIX = "quiet-workshop-" + self.registration.scope + "-";
+const CACHE = PREFIX + "v5-leaderboard";
 const FILES = [
   "./",
   "./index.html",
+  "./leaderboard.js",
+  "./leaderboard.css",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
@@ -23,7 +26,7 @@ self.addEventListener("activate", (event) =>
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k.startsWith("quiet-workshop-") && k !== CACHE)
+            .filter((k) => k.startsWith(PREFIX) && k !== CACHE)
             .map((k) => caches.delete(k)),
         ),
       )
@@ -38,7 +41,8 @@ self.addEventListener("fetch", (event) => {
     return;
   event.respondWith(
     caches
-      .match(event.request)
+      .open(CACHE)
+      .then((cache) => cache.match(event.request))
       .then((cached) => cached || fetch(event.request)),
   );
 });

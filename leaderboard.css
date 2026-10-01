@@ -1,0 +1,31 @@
+.wood-online-dialog {
+  color: var(--cream, #f7e5c8); background: linear-gradient(150deg, #4b3021, #261911);
+  border: 1px solid #a77b4e; border-radius: 22px; padding: 24px;
+  width: min(460px, calc(100vw - 24px)); max-height: calc(100dvh - 32px);
+  overflow-y: auto; box-shadow: 0 20px 80px #0009; font: inherit;
+}
+.wood-online-dialog::backdrop {background: #120c09bb; backdrop-filter: blur(5px);}
+.wood-online-title {margin: 0 0 16px; color: #eac078; font-size: 24px;}
+.wood-online-body {font-size: 15px; line-height: 1.5;}
+.wood-online-body p {margin: 10px 0;}
+.wood-online-dialog form {display: grid; gap: 10px;}
+.wood-online-dialog label {font-weight: 600;}
+.wood-online-dialog input {
+  width: 100%; min-width: 0; min-height: 48px; padding: 12px; border-radius: 10px;
+  border: 1px solid #a77b4e; background: #1d130e; color: #f7e5c8; font: inherit; font-size: 16px;
+}
+.wood-online-dialog input:focus-visible {outline: 2px solid #eac078; outline-offset: 2px;}
+.wood-online-dialog .wood-online-small {font-size: 12px; color: #c8b197;}
+.wood-online-message {font-size: 13px; line-height: 1.5; min-height: 20px; color: #eac078; overflow-wrap: anywhere;}
+.wood-online-actions {display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px;}
+.wood-online-actions button {flex: 1 1 100px; padding: 8px 12px; font-size: 13px;}
+.wood-online-primary {background: linear-gradient(135deg, #906333, #674222); border-color: #d6a76a; padding: 10px 14px;}
+.wood-ranking-table {width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed;}
+.wood-ranking-table caption {text-align: left; color: #bc9f7e; margin: 12px 0; font-size: 12px;}
+.wood-ranking-table th,.wood-ranking-table td {padding: 10px 4px; border-bottom: 1px solid #72513a70; text-align: left; overflow-wrap: anywhere;}
+.wood-ranking-table th:first-child,.wood-ranking-table td:first-child {width: 52px;}
+.wood-ranking-table th:last-child,.wood-ranking-table td:last-child {width: 88px; text-align: right; font-variant-numeric: tabular-nums;}
+.wood-ranking-me {background: #d6a76a18; color: #ffd494;}
+.wood-online-profile {font-weight: 600; overflow-wrap: anywhere;}
+.wood-ranking-button {font-size: 19px; flex-shrink: 0;}
+@media (max-width: 400px) { .wood-online-dialog {padding: 18px;} .top h1 {font-size: 20px;} .tools {gap: 4px;} .tools .icon {width: 38px; min-width: 38px;} }
