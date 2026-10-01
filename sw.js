@@ -1,6 +1,6 @@
 "use strict";
 const PREFIX = "quiet-workshop-" + self.registration.scope + "-";
-const CACHE = PREFIX + "v15-light-combo-centered-score";
+const CACHE = PREFIX + "v16-bomb-drag-gap-64";
 const FILES = [
   "./",
   "./index.html",

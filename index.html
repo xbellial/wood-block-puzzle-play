@@ -649,6 +649,12 @@
       @media (prefers-reduced-motion: reduce) {
         #comboBanner.combo-show { animation: none; }
       }
+      #saw { touch-action: none; }
+      #bombGhost {
+        position: fixed; z-index: 6; pointer-events: none;
+        transform: translate(-50%, -50%); line-height: 1;
+      }
+      #bombGhost[hidden] { display: none !important; }
     </style>
   </head>
   <body>
@@ -745,6 +751,7 @@
       </footer>
     </main>
     <canvas id="fx" aria-hidden="true"></canvas>
+    <div id="bombGhost" aria-hidden="true" hidden>💣</div>
     <div class="live" id="live" aria-live="polite"></div>
     <div class="veil" id="veil" hidden>
       <section
@@ -1137,6 +1144,7 @@
         selected = -1,
         target = { x: 0, y: 0 },
         drag = null,
+        bombDrag = null,
         sawMode = false,
         hover = null,
         modalKind = null,
@@ -1298,7 +1306,7 @@
         $("#refresh").disabled = state.refresh === 0;
         $("#saw").classList.toggle("active", sawMode);
         $("#saw").setAttribute("aria-pressed", String(sawMode));
-        $("#saw").title = "Бомба: выберите центр области 3×3. Лёд снимается, очки не начисляются.";
+        $("#saw").title = "Бомба: перетащите и отпустите над областью 3×3. Лёд снимается, очки не начисляются.";
         $("#sound").setAttribute(
           "aria-label",
           state.muted ? "Включить звук" : "Выключить звук",
@@ -1483,6 +1491,12 @@
             const left = Math.max(0, hover.x - 1), top = Math.max(0, hover.y - 1);
             const right = Math.min(n - 1, hover.x + 1), bottom = Math.min(n - 1, hover.y + 1);
             ctx.fillRect(left * cell, top * cell, (right - left + 1) * cell, (bottom - top + 1) * cell);
+            ctx.strokeStyle = "#ffe49b";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(left * cell + 1, top * cell + 1,
+              (right - left + 1) * cell - 2, (bottom - top + 1) * cell - 2);
+            ctx.strokeStyle = "#fff5d4";
+            ctx.strokeRect(hover.x * cell + 3, hover.y * cell + 3, cell - 6, cell - 6);
           }
         } else if (selected >= 0) {
           const s = byId(state.tray[selected]),
@@ -1828,6 +1842,14 @@
           slots[drag.slot].classList.remove("dragging");
         }
         drag = null;
+        if (bombDrag) {
+          const d = bombDrag;
+          bombDrag = null;
+          try { d.source.releasePointerCapture(d.id); } catch (_) {}
+          hover = null;
+          $("#bombGhost").hidden = true;
+          draw();
+        }
         startFX();
       }
       function place(slot, x, y) {
@@ -1971,7 +1993,7 @@
       }
       // Gap in CSS pixels between a finger and the bottom of the dragged shape.
       // Keep this independent of shape height so even tall pieces remain visible.
-      const TOUCH_DRAG_GAP = 96;
+      const TOUCH_DRAG_GAP = 64;
       function updateDragPosition(e) {
         const s = byId(state.tray[drag.slot]),
           w = Math.max(...s.cells.map((p) => p[0])) + 1,
@@ -1988,7 +2010,7 @@
       // Pointer events unify mouse, stylus and touch.
       slots.forEach((button, i) => {
         button.addEventListener("pointerdown", (e) => {
-          if (modalKind || !state.tray[i] || drag || e.button !== 0) return;
+          if (modalKind || !state.tray[i] || drag || bombDrag || e.button !== 0) return;
           audioReady();
           sawMode = false;
           selected = i;
@@ -2019,6 +2041,7 @@
         });
         button.addEventListener("pointerup", (e) => {
           if (!drag || drag.id !== e.pointerId) return;
+          if (drag.moved) updateDragPosition(e);
           const d = drag;
           cancelDrag();
           if (d.moved && d.target) {
@@ -2061,12 +2084,13 @@
         };
       }
       board.addEventListener("pointermove", (e) => {
-        if (modalKind || drag) return;
+        if (modalKind || drag || bombDrag) return;
         hover = boardPoint(e);
         if (selected >= 0) target = hover;
         draw();
       });
       board.addEventListener("pointerleave", () => {
+        if (bombDrag) return;
         hover = null;
         if (sawMode || selected >= 0) draw();
       });
@@ -2075,7 +2099,7 @@
         e.preventDefault();
         audioReady();
         const p = boardPoint(e);
-        if (sawMode) sawAt(p.x, p.y);
+        if (sawMode) beginBombDrag(e, board, false);
         else if (selected >= 0) place(selected, p.x, p.y);
         board.focus();
       });
@@ -2106,7 +2130,78 @@
           updateUI();
         }
       });
-      $("#saw").addEventListener("click", () => {
+      function updateBombPosition(e) {
+        const r = board.getBoundingClientRect();
+        const cx = e.clientX;
+        const cy = e.clientY - (bombDrag.touch ? cell / 2 + TOUCH_DRAG_GAP : 0);
+        bombDrag.target = {
+          x: Math.floor((cx - r.left) / cell),
+          y: Math.floor((cy - r.top) / cell),
+        };
+        hover = bombDrag.target;
+        target = hover;
+        const valid = hover.x >= 0 && hover.y >= 0 &&
+          hover.x < state.grid.length && hover.y < state.grid.length;
+        const ghost = $("#bombGhost");
+        ghost.hidden = false;
+        // On the board snap the ghost to the same centre used by the 3x3 preview.
+        ghost.style.left = (valid ? r.left + (hover.x + 0.5) * cell : cx) + "px";
+        ghost.style.top = (valid ? r.top + (hover.y + 0.5) * cell : cy) + "px";
+        ghost.style.fontSize = Math.max(24, cell * 0.8) + "px";
+        draw();
+      }
+      function beginBombDrag(e, source, fromButton) {
+        if (modalKind || drag || bombDrag || !state.saw || e.button !== 0) return;
+        e.preventDefault();
+        audioReady();
+        const wasMode = sawMode;
+        sawMode = true;
+        selected = -1;
+        hover = null;
+        bombDrag = { id: e.pointerId, source, fromButton, wasMode,
+          touch: e.pointerType === "touch", startX: e.clientX, startY: e.clientY,
+          moved: false, target: null };
+        source.setPointerCapture(e.pointerId);
+        if (!fromButton) updateBombPosition(e);
+        status("Ведите бомбу по полю. Отпустите для взрыва в области 3×3.");
+        updateUI();
+      }
+      $("#saw").addEventListener("pointerdown", (e) => beginBombDrag(e, $("#saw"), true));
+      [$("#saw"), board].forEach((source) => {
+        source.addEventListener("pointermove", (e) => {
+          if (!bombDrag || bombDrag.id !== e.pointerId || bombDrag.source !== source) return;
+          if (Math.hypot(e.clientX - bombDrag.startX, e.clientY - bombDrag.startY) > 5)
+            bombDrag.moved = true;
+          if (bombDrag.moved || !bombDrag.fromButton) updateBombPosition(e);
+        });
+        source.addEventListener("pointerup", (e) => {
+          if (!bombDrag || bombDrag.id !== e.pointerId || bombDrag.source !== source) return;
+          const d = bombDrag;
+          const apply = d.moved || !d.fromButton;
+          if (apply) updateBombPosition(e);
+          const t = d.target;
+          cancelDrag();
+          if (apply && t) {
+            const n = state.grid.length;
+            if (t.x >= 0 && t.y >= 0 && t.x < n && t.y < n) sawAt(t.x, t.y);
+            else status("Бомба вне поля — заряд не потрачен.");
+          } else {
+            sawMode = !d.wasMode;
+            status(sawMode ? "Перетащите бомбу на поле или наведите её с поля." : "Бомба убрана.");
+          }
+          updateUI();
+        });
+        const cancelBomb = (e) => {
+          if (!bombDrag || bombDrag.id !== e.pointerId || bombDrag.source !== source) return;
+          cancelDrag();
+          status("Перетаскивание отменено — бомба сохранена.");
+          updateUI();
+        };
+        source.addEventListener("pointercancel", cancelBomb);
+        source.addEventListener("lostpointercapture", cancelBomb);
+      });
+      $("#saw").addEventListener("click", (e) => {
+        if (e.detail !== 0 || modalKind || !state.saw) return;
         audioReady();
         cancelDrag();
         selected = -1;
@@ -2114,7 +2209,7 @@
         hover = sawMode ? target : null;
         status(
           sawMode
-            ? "Бомба: нажмите на центр области 3×3. Замороженные блоки потеряют лёд."
+            ? "Бомба: перетащите на поле и отпустите над подсвеченной областью 3×3."
             : "Бомба убрана.",
         );
         updateUI();
@@ -2193,7 +2288,7 @@
               closeModal();
               sawMode = true;
               hover = target;
-              status("Выберите центр взрыва 3×3.");
+              status("Перетащите бомбу или наведите её с поля; отпустите для взрыва 3×3.");
               updateUI();
             },
           });
@@ -2278,7 +2373,7 @@
         openModal(
           "help",
           "Искусство укладывать",
-          '<p>Перетаскивайте деревянные фигуры на поле. Можно также выбрать фигуру и нажать на нужную клетку.</p><ul><li>Заполненные ряды и столбцы освобождаются: 100 / 300 / 600 очков за 1 / 2 / 3 линии.</li><li>Очищайте каждый ход: серия повышает множитель до ×3. Перекрёст даёт +250 за каждую пару линий.</li><li>Бомба удаляет обычные блоки в области 3×3 вокруг выбранной клетки, а замороженные размораживает. Сброс заменяет тройку. Перекрёст и каждые 5 очисток подряд пополняют оба бустера, максимум до 2.</li><li>Каждые 1 000 очков — новый уровень. На уровнях 5, 10, 15 и далее каждые 5 уровней 2–3 уже стоящих обычных блока становятся замороженными. Если блоков меньше двух, заморозка ждёт следующих ходов. Первое попадание линии или бомбы снимает лёд, второе удаляет блок. С 16-го доступны S/Z. С 21-го поле растёт до 10×10.</li><li>Клавиатура: Tab → фигура → Enter, затем стрелки и Enter на поле. Escape отменяет выбор.</li></ul><p class="subtle">Для 4+ линий база: 100 × N(N+1)/2 + 100(N−1). Ледяные блоки считаются занятыми при сборе линии. Перекрёст за один ход даёт один удар, а не два. Бустеры сбрасывают серию и не дают очков. Нет таймера или рекламы. Общая таблица рекордов использует Supabase; сама игра работает офлайн.</p>',
+          '<p>Перетаскивайте деревянные фигуры на поле. Можно также выбрать фигуру и нажать на нужную клетку.</p><ul><li>Заполненные ряды и столбцы освобождаются: 100 / 300 / 600 очков за 1 / 2 / 3 линии.</li><li>Очищайте каждый ход: серия повышает множитель до ×3. Перекрёст даёт +250 за каждую пару линий.</li><li>Перетащите бомбу с кнопки на поле: область 3×3 подсвечивается до отпускания. Бомба удаляет обычные блоки в этой области, а замороженные размораживает. Сброс заменяет тройку. Перекрёст и каждые 5 очисток подряд пополняют оба бустера, максимум до 2.</li><li>Каждые 1 000 очков — новый уровень. На уровнях 5, 10, 15 и далее каждые 5 уровней 2–3 уже стоящих обычных блока становятся замороженными. Если блоков меньше двух, заморозка ждёт следующих ходов. Первое попадание линии или бомбы снимает лёд, второе удаляет блок. С 16-го доступны S/Z. С 21-го поле растёт до 10×10.</li><li>Клавиатура: Tab → фигура → Enter, затем стрелки и Enter на поле. Escape отменяет выбор.</li></ul><p class="subtle">Для 4+ линий база: 100 × N(N+1)/2 + 100(N−1). Ледяные блоки считаются занятыми при сборе линии. Перекрёст за один ход даёт один удар, а не два. Бустеры сбрасывают серию и не дают очков. Нет таймера или рекламы. Общая таблица рекордов использует Supabase; сама игра работает офлайн.</p>',
           [
             {
               text: "В мастерскую",
