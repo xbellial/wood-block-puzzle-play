@@ -1009,6 +1009,9 @@
           (levelOf(o.score) < 16 && o.tray.some((id) => id && byId(id).sz))
         )
           return false;
+        if (o.lastFreezeStage !== undefined &&
+            (!Number.isSafeInteger(o.lastFreezeStage) || o.lastFreezeStage < 0 ||
+             o.lastFreezeStage > Math.floor(levelOf(o.score) / 5))) return false;
         return (
           Number.isSafeInteger(o.streak) &&
           o.streak >= 0 &&
@@ -1073,7 +1076,8 @@
           streak: 0,
           saw: 1, // Legacy save key: the old saw inventory now holds bombs.
           refresh: 1,
-          obstacles: false,
+          obstacles: false, // Legacy flag retained for compatibility with v1 saves.
+          lastFreezeStage: 0,
           muted,
         };
       }
@@ -1087,6 +1091,9 @@
         return null;
       }
       state = load() || fresh();
+      // Old parties start from their current milestone, with no retroactive freeze storm.
+      if (state.lastFreezeStage === undefined)
+        state.lastFreezeStage = Math.floor(levelOf(state.score) / 5);
       state.best = Math.max(state.best, state.score);
       if (!state.tray.length) state.tray = generateTray(state.grid, 1);
       function persist() {
@@ -1440,8 +1447,14 @@
         startFX();
       }
       // FIFO notices enter only after the previous message has lifted by a full line height.
-      function float(text, color = "#f6d094") {
-        notices.push({ text, color });
+      function float(text, color = "#f6d094", emphasis = false) {
+        if (emphasis) {
+          // Important frost warning appears immediately, separately from the FIFO score stream.
+          const r = board.getBoundingClientRect();
+          const origin = r.top + r.height * 0.32;
+          floaters.push({text, color, emphasis, x: r.left + r.width / 2,
+            y: origin, origin, age: 0, life: 5.5});
+        } else notices.push({ text, color });
         announce(text);
         startFX();
       }
@@ -1546,8 +1559,8 @@
         for (const p of floaters) {
           p.age += dt;
           // Hold for readability, then fly upward while the next item arrives below.
-          const flight = Math.max(0, p.age - 1.3);
-          p.y = p.origin - (reduced ? 0 : flight * 68);
+          const flight = Math.max(0, p.age - (p.emphasis ? 3.5 : 1.3));
+          p.y = p.origin - (reduced ? 0 : flight * (p.emphasis ? 24 : 68));
           fc.save();
           fc.globalAlpha = Math.min(
             1,
@@ -1556,17 +1569,25 @@
           );
           fc.textAlign = "center";
           fc.textBaseline = "middle";
-          const fontSize = Math.min(34, Math.max(25, bw * 0.095));
-          fc.font = `${fontSize}px WorkshopBrush, 'Segoe Print', serif`;
+          const fontSize = p.emphasis
+            ? Math.min(42, Math.max(28, bw * 0.105))
+            : Math.min(34, Math.max(25, bw * 0.095));
+          fc.font = p.emphasis
+            ? `900 ${fontSize}px 'Segoe UI', Arial, sans-serif`
+            : `${fontSize}px WorkshopBrush, 'Segoe Print', serif`;
           fc.shadowColor = "#1b0c05";
           fc.shadowBlur = 9;
           fc.lineJoin = "round";
           fc.lineWidth = 5;
           fc.strokeStyle = "#29170ee6";
           const limit = Math.min(bw - 12, innerWidth - 32);
-          fc.strokeText(p.text, p.x, p.y, limit);
+          const lines = p.text.split("\n");
           fc.fillStyle = p.color;
-          fc.fillText(p.text, p.x, p.y, limit);
+          lines.forEach((line, i) => {
+            const y = p.y + (i - (lines.length - 1) / 2) * fontSize * 1.16;
+            fc.strokeText(line, p.x, y, limit);
+            fc.fillText(line, p.x, y, limit);
+          });
           fc.restore();
         }
         if (drag && drag.moved) {
@@ -1593,21 +1614,29 @@
           frameId = requestAnimationFrame(frame);
       }
       function addObstacles() {
-        if (state.obstacles || levelOf(state.score) < 6) return;
-        const empty = [];
-        state.grid.forEach((r, y) =>
-          r.forEach((v, x) => {
-            if (v === 0) empty.push([x, y]);
-          }),
-        );
-        let count = 2 + Math.floor(Math.random() * 3);
-        for (let k = 0; k < count && empty.length; k++) {
-          let i = Math.floor(Math.random() * empty.length),
-            [x, y] = empty.splice(i, 1)[0];
-          state.grid[y][x] = -1;
+        const due = Math.floor(levelOf(state.score) / 5);
+        let frozen = 0;
+        while (state.lastFreezeStage < due) {
+          const candidates = [];
+          state.grid.forEach((row, y) => row.forEach((v, x) => {
+            if (v > 0) candidates.push([x, y]);
+          }));
+          // Wait until at least two ordinary blocks exist; never create blocks in empty cells.
+          if (candidates.length < 2) break;
+          const count = Math.min(candidates.length, 2 + Math.floor(Math.random() * 2));
+          for (let k = 0; k < count; k++) {
+            const i = Math.floor(Math.random() * candidates.length);
+            const [x, y] = candidates.splice(i, 1)[0];
+            state.grid[y][x] = -1;
+          }
+          state.lastFreezeStage++;
+          frozen += count;
         }
-        state.obstacles = true;
-        float("Появились ледяные блоки", "#aeefff");
+        if (frozen) {
+          status("Уровень " + (state.lastFreezeStage * 5) + ": заморожено блоков — " + frozen + ".");
+          float("БЛОКИ\nЗАМОРОЖЕНЫ!", "#aeefff", true);
+          vibrate([35, 30, 35]);
+        }
       }
       function progressLevel(oldLevel) {
         const l = levelOf(state.score);
@@ -1624,11 +1653,11 @@
           resize();
           float("Новый простор · 10 × 10");
         }
-        addObstacles();
         if (l > oldLevel) {
           status(rankOf(l) + " · уровень " + l);
           if (l < 21) float("Уровень " + l);
         }
+        addObstacles();
       }
       function cancelDrag() {
         if (drag) {
@@ -2054,7 +2083,7 @@
         openModal(
           "help",
           "Искусство укладывать",
-          '<p>Перетаскивайте деревянные фигуры на поле. Можно также выбрать фигуру и нажать на нужную клетку.</p><ul><li>Заполненные ряды и столбцы освобождаются: 100 / 300 / 600 очков за 1 / 2 / 3 линии.</li><li>Очищайте каждый ход: серия повышает множитель до ×3. Перекрёст даёт +250 за каждую пару линий.</li><li>Бомба удаляет обычные блоки в области 3×3 вокруг выбранной клетки, а замороженные размораживает. Сброс заменяет тройку. Перекрёст и каждые 5 очисток подряд пополняют оба бустера, максимум до 2.</li><li>Каждые 1 000 очков — новый уровень. С 6-го появляются 2–4 замороженных блока: первое попадание линии или бомбы снимает лёд, второе удаляет блок. С 16-го доступны S/Z. С 21-го поле растёт до 10×10.</li><li>Клавиатура: Tab → фигура → Enter, затем стрелки и Enter на поле. Escape отменяет выбор.</li></ul><p class="subtle">Для 4+ линий база: 100 × N(N+1)/2 + 100(N−1). Ледяные блоки считаются занятыми при сборе линии. Перекрёст за один ход даёт один удар, а не два. Бустеры сбрасывают серию и не дают очков. Нет таймера или рекламы. Общая таблица рекордов использует Supabase; сама игра работает офлайн.</p>',
+          '<p>Перетаскивайте деревянные фигуры на поле. Можно также выбрать фигуру и нажать на нужную клетку.</p><ul><li>Заполненные ряды и столбцы освобождаются: 100 / 300 / 600 очков за 1 / 2 / 3 линии.</li><li>Очищайте каждый ход: серия повышает множитель до ×3. Перекрёст даёт +250 за каждую пару линий.</li><li>Бомба удаляет обычные блоки в области 3×3 вокруг выбранной клетки, а замороженные размораживает. Сброс заменяет тройку. Перекрёст и каждые 5 очисток подряд пополняют оба бустера, максимум до 2.</li><li>Каждые 1 000 очков — новый уровень. На уровнях 5, 10, 15 и далее каждые 5 уровней 2–3 уже стоящих обычных блока становятся замороженными. Если блоков меньше двух, заморозка ждёт следующих ходов. Первое попадание линии или бомбы снимает лёд, второе удаляет блок. С 16-го доступны S/Z. С 21-го поле растёт до 10×10.</li><li>Клавиатура: Tab → фигура → Enter, затем стрелки и Enter на поле. Escape отменяет выбор.</li></ul><p class="subtle">Для 4+ линий база: 100 × N(N+1)/2 + 100(N−1). Ледяные блоки считаются занятыми при сборе линии. Перекрёст за один ход даёт один удар, а не два. Бустеры сбрасывают серию и не дают очков. Нет таймера или рекламы. Общая таблица рекордов использует Supabase; сама игра работает офлайн.</p>',
           [
             {
               text: "В мастерскую",
