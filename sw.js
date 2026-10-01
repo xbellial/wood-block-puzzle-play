@@ -1,6 +1,6 @@
 "use strict";
 const PREFIX = "quiet-workshop-" + self.registration.scope + "-";
-const CACHE = PREFIX + "v13-compact-fullscreen";
+const CACHE = PREFIX + "v14-combo-score-fx";
 const FILES = [
   "./",
   "./index.html",
