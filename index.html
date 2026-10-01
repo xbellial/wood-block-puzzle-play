@@ -566,38 +566,38 @@
           font-size: 25px !important;
         }
       }
+      /* Prioritize the board; service controls live below the pieces. */
+      .app {
+        padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right))
+          max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+        gap: 6px;
+      }
+      .stats { padding: 5px 12px; border-radius: 12px; }
+      .stats strong { font-size: 26px; }
+      .record strong { font-size: 22px; }
+      .stats label { font-size: 9px; letter-spacing: 1px; }
+      .levelhead { margin-bottom: 3px; }
+      .boardwrap { padding: 8px; }
+      .tray { height: clamp(64px, 10dvh, 84px); }
+      .status { height: 14px; font-size: 10px; }
+      .bottom-tools { flex: none; justify-content: center; gap: 12px; }
+      .bottom-tools .icon { width: 44px; min-width: 44px; min-height: 44px; }
+      #fullscreen { font-size: 25px; }
+      #saveNote { display: none; }
+      @media (max-height: 450px) {
+        .app { grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+        .stats { grid-column: 1; grid-row: 1; }
+        .level { grid-column: 1; grid-row: 2; }
+        .tray { grid-column: 1; grid-row: 3; height: 64px; }
+        .boosters { grid-column: 1; grid-row: 4; }
+        .bottom-tools { grid-column: 1; grid-row: 5; gap: 8px; }
+        .playarea { grid-column: 2; grid-row: 1 / 6; }
+      }
     </style>
   </head>
   <body>
     <main class="app">
-      <header class="top">
-        <div>
-          <div class="eyebrow">WOOD BLOCK · МЕСТО ДЛЯ ПАУЗЫ</div>
-          <h1>Тихая мастерская</h1>
-        </div>
-        <div class="tools">
-          <button
-            class="icon"
-            id="sound"
-            aria-label="Выключить звук"
-            title="Звук"
-          >
-            <svg viewBox="0 0 24 24">
-              <path d="M11 5 6 9H3v6h3l5 4zM15 8q6 4 0 8M18 5q9 7 0 14" />
-            </svg></button
-          ><button
-            class="icon"
-            id="help"
-            aria-label="Правила игры"
-            title="Правила"
-          >
-            <svg viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M9 9a3 3 0 1 1 4 3c-1 0-1 1-1 2M12 17h.01" />
-            </svg>
-          </button>
-        </div>
-      </header>
+
       <section class="stats" aria-label="Очки">
         <div><label>Сейчас</label><strong id="score">0</strong></div>
         <div class="record">
@@ -658,9 +658,33 @@
           ><span class="badge" id="refreshCount">1</span></button
         >
       </div>
+        <div class="tools bottom-tools" aria-label="Управление игрой">
+          <button
+            class="icon"
+            id="sound"
+            aria-label="Выключить звук"
+            title="Звук"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M11 5 6 9H3v6h3l5 4zM15 8q6 4 0 8M18 5q9 7 0 14" />
+            </svg></button
+          ><button
+            class="icon"
+            id="help"
+            aria-label="Правила игры"
+            title="Правила"
+          >
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9 9a3 3 0 1 1 4 3c-1 0-1 1-1 2M12 17h.01" />
+            </svg>
+          </button>
+          <button class="icon" id="fullscreen" aria-label="Полный экран" aria-pressed="false" title="Полный экран">⛶</button>
+        </div>
       <footer class="footer">
-        <span id="saveNote">СОХРАНЯЕТСЯ НА УСТРОЙСТВЕ</span
-        ><button id="restart">Новая игра ↗</button>
+        <span id="saveNote">СОХРАНЯЕТСЯ НА УСТРОЙСТВЕ</span>
+        <button id="installGuide">На экран телефона ↗</button>
+        <button id="restart">Новая игра ↗</button>
       </footer>
     </main>
     <canvas id="fx" aria-hidden="true"></canvas>
@@ -1994,6 +2018,31 @@
         audioReady();
         persist();
         updateUI();
+      });
+      function showInstallGuide() {
+        openModal("install", "Игра без адресной строки",
+          "<p><strong>Android:</strong> откройте игру в Chrome, затем меню ⋮ → «Установить приложение» или «Добавить на главный экран».</p>" +
+          "<p><strong>iPhone:</strong> откройте игру в Safari → «Поделиться» → «На экран Домой». Если доступно, включите «Открывать как веб-приложение».</p>" +
+          "<p>После установки запускайте игру со значка на главном экране, а не из вкладки браузера. В браузере внутри Telegram полноэкранный режим может быть недоступен: откройте ссылку во внешнем браузере.</p>" +
+          "<p>Не очищайте данные сайта. При отдельном хранилище установленного приложения прежняя партия остаётся в исходном браузере; её перенос между хранилищами не предусмотрен.</p>",
+          [{ text: "Понятно", primary: true, run: closeModal }]);
+      }
+      $("#installGuide").addEventListener("click", showInstallGuide);
+      $("#fullscreen").addEventListener("click", async () => {
+        try {
+          if (document.fullscreenElement) await document.exitFullscreen();
+          else if (document.fullscreenEnabled && document.documentElement.requestFullscreen)
+            await document.documentElement.requestFullscreen();
+          else showInstallGuide();
+        } catch (_) { showInstallGuide(); }
+      });
+      document.addEventListener("fullscreenchange", () => {
+        const active = !!document.fullscreenElement;
+        $("#fullscreen").setAttribute("aria-pressed", String(active));
+        $("#fullscreen").setAttribute("aria-label", active ? "Выйти из полного экрана" : "Полный экран");
+        $("#fullscreen").title = active ? "Выйти из полного экрана" : "Полный экран";
+        cancelDrag();
+        requestAnimationFrame(resize);
       });
       function closeModal() {
         veil.hidden = true;
