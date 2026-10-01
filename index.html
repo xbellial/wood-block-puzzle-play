@@ -595,7 +595,7 @@
       }
       .stats strong#score {
         display: inline-block;
-        font-size: clamp(32px, 9vw, 42px);
+        font-size: clamp(48px, 16vw, 68px);
         line-height: 1.05;
         font-weight: 900;
         letter-spacing: -1px;
@@ -604,8 +604,7 @@
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
-        filter: drop-shadow(0 2px 0 #592708) drop-shadow(0 0 7px #ffb52b55);
-        transform-origin: left center;
+        transform-origin: center;
         max-width: 100%;
         white-space: nowrap;
       }
@@ -613,7 +612,7 @@
       .stats strong#score.score-pop { animation: score-pop 560ms ease-out; }
       @keyframes score-pop {
         0% { transform: scale(1); }
-        24% { transform: scale(1.1); filter: drop-shadow(0 0 12px #ffcd59); }
+        24% { transform: scale(1.06); }
         65% { transform: scale(0.98); }
         100% { transform: scale(1); }
       }
@@ -621,7 +620,34 @@
         .stats strong#score.score-pop { animation: none; }
       }
       @media (max-height: 450px) {
-        .stats strong#score { font-size: 30px; }
+        .stats strong#score { font-size: 44px; }
+      }
+      .stats { display: block; position: relative; text-align: center; padding: 5px 8px; }
+      .stats > div:first-child { width: 100%; }
+      .stats .record { position: absolute; right: 9px; top: 5px; text-align: right; }
+      .stats .record label { font-size: 7px; letter-spacing: 0; }
+      .stats .record strong { font-size: 12px; line-height: 1; }
+      #comboBanner {
+        position: absolute; z-index: 6; top: 5%; left: 50%;
+        width: min(100%, 420px); text-align: center; pointer-events: none;
+        transform: translateX(-50%); opacity: 1;
+        text-shadow: 2px 3px 0 #482009, -1px -1px 0 #482009;
+      }
+      #comboBanner[hidden] { display: none !important; }
+      #comboBanner strong {
+        display: block; font: 900 clamp(30px, 10vw, 48px)/1.1 'Segoe UI', Arial, sans-serif;
+        color: #ffe36d; letter-spacing: -1px;
+      }
+      #comboBanner span { display: block; color: #fff4b4; font-size: 28px; font-weight: 900; }
+      #comboBanner.combo-show { animation: combo-light 2.2s ease-out both; }
+      @keyframes combo-light {
+        0% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+        12% { opacity: 1; transform: translateX(-50%) scale(1.03); }
+        24%, 80% { opacity: 1; transform: translateX(-50%) scale(1); }
+        100% { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(1); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #comboBanner.combo-show { animation: none; }
       }
     </style>
   </head>
@@ -659,6 +685,7 @@
             aria-label="Поле головоломки. Выберите фигуру, затем используйте стрелки и Enter или нажмите на клетку."
           ></canvas>
         </div>
+        <div id="comboBanner" aria-hidden="true" hidden><strong>КОМБО!</strong><span>×2</span></div>
       </div>
       <div class="status" id="status">
         Никакой спешки. Просто найдите своё место.
@@ -1127,6 +1154,7 @@
         frameId = null,
         displayScore = null,
         scoreTween = null,
+        comboEffect = null,
         storageOK = true;
       const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
       function fresh(best = 0, muted = false) {
@@ -1250,8 +1278,10 @@
           node.classList.add("score-pop");
           startFX();
         }
-        node.style.fontSize = state.score.toLocaleString("ru-RU").length > 9
-          ? "clamp(18px, 5vw, 24px)" : "";
+        node.style.fontSize = state.score.toLocaleString("ru-RU").length > 12
+          ? "clamp(28px, 8vw, 40px)"
+          : state.score.toLocaleString("ru-RU").length > 9
+            ? "clamp(36px, 10vw, 48px)" : "";
       }
       function updateUI() {
         const l = levelOf(state.score),
@@ -1352,9 +1382,11 @@
         board.height = Math.round(rect.height * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         cell = bw / state.grid.length;
-        fx.width = Math.round(innerWidth * dpr);
-        fx.height = Math.round(innerHeight * dpr);
-        fc.setTransform(dpr, 0, 0, dpr, 0, 0);
+        // Keep the static board sharp; transient full-screen effects use fewer pixels.
+        const fxDpr = Math.min(dpr, 1.5);
+        fx.width = Math.round(innerWidth * fxDpr);
+        fx.height = Math.round(innerHeight * fxDpr);
+        fc.setTransform(fxDpr, 0, 0, fxDpr, 0, 0);
         updateUI();
       }
       function drawPiece(canvas, s, i) {
@@ -1496,7 +1528,7 @@
         if (reduced || !cells.length) return;
         const r = board.getBoundingClientRect();
         for (const [x, y] of cells)
-          for (let j = 0; j < 6; j++) {
+          for (let j = 0; j < 3; j++) {
             const life = 0.65 + Math.random() * 0.6;
             particles.push({
               x: r.left + (x + 0.5) * cell,
@@ -1508,11 +1540,11 @@
               size: 3 + Math.random() * 5,
               angle: Math.random() * 6,
               spin: (Math.random() - 0.5) * 12,
-              kind: j < 3 ? kind : kind === "ice" ? "ice" : "ember",
+              kind: j < 2 ? kind : kind === "ice" ? "ice" : "ember",
             });
           }
-        if (particles.length > 1000)
-          particles.splice(0, particles.length - 1000);
+        if (particles.length > 120)
+          particles.splice(0, particles.length - 120);
         startFX();
       }
       function flare(rows, cols, strong = false) {
@@ -1560,23 +1592,14 @@
         startFX();
       }
       function celebrateCombo(multiplier, cross = false) {
-        const r = board.getBoundingClientRect();
-        // A separate immediate banner keeps combo feedback out of the slow score FIFO.
-        floaters = floaters.filter((p) => !p.combo);
-        floaters.push({ combo: true, text: cross ? "ПЕРЕКРЁСТ!" : "КОМБО!",
-          subtitle: "×" + multiplier, x: r.left + r.width / 2,
-          origin: r.top + r.height * 0.27, age: 0, life: 2.8 });
-        if (!reduced) {
-          for (let i = 0; i < 28; i++) {
-            const a = Math.random() * Math.PI * 2, speed = 70 + Math.random() * 130;
-            const life = 0.65 + Math.random() * 0.6;
-            particles.push({ x: r.left + r.width / 2, y: r.top + r.height * 0.27,
-              vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-              life, max: life, size: 2 + Math.random() * 3,
-              angle: a, spin: 2, kind: "ember" });
-          }
-          particles = particles.slice(-1000);
-        }
+        const banner = $("#comboBanner");
+        banner.querySelector("strong").textContent = cross ? "ПЕРЕКРЁСТ!" : "КОМБО!";
+        banner.querySelector("span").textContent = "×" + multiplier;
+        banner.hidden = false;
+        banner.classList.remove("combo-show");
+        void banner.offsetWidth;
+        banner.classList.add("combo-show");
+        comboEffect = { age: 0, life: 2.2 };
         announce((cross ? "Перекрёст" : "Комбо") + " ×" + multiplier);
         startFX();
       }
@@ -1603,6 +1626,13 @@
           $("#score").textContent = displayScore.toLocaleString("ru-RU");
           if (t === 1) { scoreTween = null; $("#score").classList.remove("score-pop"); }
         }
+        if (comboEffect) {
+          comboEffect.age += dt;
+          if (comboEffect.age >= comboEffect.life) {
+            $("#comboBanner").hidden = true;
+            comboEffect = null;
+          }
+        }
         noticeClock += dt;
         if (notices.length && noticeClock >= nextNoticeAt) {
           const r = board.getBoundingClientRect(),
@@ -1628,7 +1658,7 @@
             fc.strokeStyle = "#ffad42";
             fc.lineWidth = 7 * (1 - t) + 1;
             fc.shadowColor = "#ff6020";
-            fc.shadowBlur = 20;
+            fc.shadowBlur = 0;
             fc.beginPath();
             fc.arc(b.x, b.y, 12 + t * b.size * 0.55, 0, Math.PI * 2);
             fc.stroke();
@@ -1671,7 +1701,7 @@
           if (p.kind === "ember") {
             fc.globalCompositeOperation = "lighter";
             fc.shadowColor = "#ff6020";
-            fc.shadowBlur = 12;
+            fc.shadowBlur = 0;
             fc.fillStyle = p.life / p.max > 0.6 ? "#ffe5a0" : "#ff7430";
             fc.beginPath();
             fc.ellipse(0, 0, p.size * 0.55, p.size * 1.4, 0, 0, Math.PI * 2);
@@ -1679,7 +1709,7 @@
           } else {
             fc.fillStyle = p.kind === "ice" ? "#b4f4ff" : "#d5a065";
             fc.shadowColor = p.kind === "ice" ? "#81dfff" : "transparent";
-            fc.shadowBlur = p.kind === "ice" ? 8 : 0;
+            fc.shadowBlur = 0;
             fc.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.55);
           }
           fc.restore();
@@ -1687,58 +1717,6 @@
         floaters = floaters.filter((p) => p.age < p.life);
         for (const p of floaters) {
           p.age += dt;
-          if (p.combo) {
-            const r = board.getBoundingClientRect();
-            const warning = floaters.some((f) => f.emphasis && !f.combo && f.age < f.life);
-            const y = warning ? r.top + r.height * 0.12 : p.origin;
-            const size = Math.min(58, Math.max(36, bw * 0.17));
-            const limit = Math.max(1, Math.min(bw - 16, innerWidth - 24));
-            const pop = reduced ? 1 : p.age < 0.22
-              ? 0.65 + 0.35 * Math.sin(Math.min(1, p.age / 0.22) * Math.PI / 2)
-              : 1 + Math.sin(p.age * 5) * 0.025;
-            fc.save();
-            fc.globalAlpha = Math.min(1, p.age / 0.12, Math.max(0, (p.life - p.age) / 0.5));
-            fc.translate(r.left + r.width / 2, y);
-            fc.scale(pop, pop);
-            if (!reduced && p.age < 1.15) {
-              fc.save();
-              fc.globalAlpha *= (1 - p.age / 1.15) * 0.6;
-              fc.strokeStyle = "#ffdb6a";
-              fc.lineWidth = 3;
-              fc.shadowColor = "#ffad33";
-              fc.shadowBlur = 14;
-              for (let i = 0; i < 12; i++) {
-                const a = i * Math.PI / 6, radius = size * (0.7 + p.age);
-                fc.beginPath();
-                fc.moveTo(Math.cos(a) * radius, Math.sin(a) * radius * 0.55);
-                fc.lineTo(Math.cos(a) * (radius + 24), Math.sin(a) * (radius + 24) * 0.55);
-                fc.stroke();
-              }
-              fc.restore();
-            }
-            fc.textAlign = "center";
-            fc.textBaseline = "middle";
-            fc.font = `900 ${size}px 'Segoe UI', Arial, sans-serif`;
-            fc.lineJoin = "round";
-            fc.lineWidth = 8;
-            fc.strokeStyle = "#482009";
-            fc.shadowColor = "#ffb52b";
-            fc.shadowBlur = reduced ? 0 : 20;
-            const gold = fc.createLinearGradient(0, -size / 2, 0, size / 2);
-            gold.addColorStop(0, "#fff9dc");
-            gold.addColorStop(0.45, "#ffe36d");
-            gold.addColorStop(1, "#ff8b32");
-            fc.fillStyle = gold;
-            fc.strokeText(p.text, 0, -10, limit / Math.max(1, pop));
-            fc.fillText(p.text, 0, -10, limit / Math.max(1, pop));
-            fc.font = `900 ${Math.round(size * 0.58)}px 'Segoe UI', Arial, sans-serif`;
-            fc.lineWidth = 5;
-            fc.fillStyle = "#fff4b4";
-            fc.strokeText(p.subtitle, 0, size * 0.65, limit);
-            fc.fillText(p.subtitle, 0, size * 0.65, limit);
-            fc.restore();
-            continue;
-          }
           // Hold for readability, then fly upward while the next item arrives below.
           const flight = Math.max(0, p.age - (p.emphasis ? 3.5 : 1.3));
           p.y = p.origin - (reduced ? 0 : flight * (p.emphasis ? 24 : 68));
@@ -1791,6 +1769,7 @@
           notices.length ||
           bursts.length ||
           scoreTween ||
+          comboEffect ||
           drag
         )
           frameId = requestAnimationFrame(frame);
@@ -2178,6 +2157,7 @@
       function closeModal() {
         veil.hidden = true;
         modalKind = null;
+        $("#comboBanner").style.animationPlayState = "running";
         startFX();
         if (previousFocus?.isConnected) previousFocus.focus();
       }
@@ -2188,6 +2168,7 @@
         updateUI();
         previousFocus = document.activeElement;
         modalKind = kind;
+        $("#comboBanner").style.animationPlayState = "paused";
         $("#modalTitle").textContent = title;
         $("#modalBody").innerHTML = body;
         const box = $("#modalActions");
@@ -2253,6 +2234,8 @@
         state = fresh(best, muted);
         displayScore = null;
         scoreTween = null;
+        comboEffect = null;
+        $("#comboBanner").hidden = true;
         state.tray = generateTray(state.grid, 1);
         particles = [];
         floaters = [];
