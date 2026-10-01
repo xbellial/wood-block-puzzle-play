@@ -1,6 +1,6 @@
 "use strict";
 const PREFIX = "quiet-workshop-" + self.registration.scope + "-";
-const CACHE = PREFIX + "v5-leaderboard";
+const CACHE = PREFIX + "v6-unique-names";
 const FILES = [
   "./",
   "./index.html",
