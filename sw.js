@@ -1,6 +1,6 @@
 "use strict";
 const PREFIX = "quiet-workshop-" + self.registration.scope + "-";
-const CACHE = PREFIX + "v9-periodic-freeze";
+const CACHE = PREFIX + "v10-touch-drag-gap";
 const FILES = [
   "./",
   "./index.html",

@@ -1808,7 +1808,23 @@
         updateUI();
         checkOver();
       }
-      // Pointer events unify mouse, stylus and touch. The dragged piece is lifted above a finger.
+      // Gap in CSS pixels between a finger and the bottom of the dragged shape.
+      // Keep this independent of shape height so even tall pieces remain visible.
+      const TOUCH_DRAG_GAP = 32;
+      function updateDragPosition(e) {
+        const s = byId(state.tray[drag.slot]),
+          w = Math.max(...s.cells.map((p) => p[0])) + 1,
+          h = Math.max(...s.cells.map((p) => p[1])) + 1,
+          r = board.getBoundingClientRect();
+        drag.left = e.clientX - (w * cell) / 2;
+        drag.top = e.clientY - (drag.touch ? h * cell + TOUCH_DRAG_GAP : (h * cell) / 2);
+        drag.target = {
+          x: Math.round((drag.left - r.left) / cell),
+          y: Math.round((drag.top - r.top) / cell),
+        };
+        target = drag.target;
+      }
+      // Pointer events unify mouse, stylus and touch.
       slots.forEach((button, i) => {
         button.addEventListener("pointerdown", (e) => {
           if (modalKind || !state.tray[i] || drag || e.button !== 0) return;
@@ -1835,20 +1851,7 @@
           if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 5)
             drag.moved = true;
           if (!drag.moved) return;
-          const s = byId(state.tray[i]),
-            w = Math.max(...s.cells.map((p) => p[0])) + 1,
-            h = Math.max(...s.cells.map((p) => p[1])) + 1,
-            r = board.getBoundingClientRect();
-          drag.left = e.clientX - (w * cell) / 2;
-          drag.top =
-            e.clientY -
-            (h * cell) / 2 -
-            (drag.touch ? Math.max(48, cell * 1.25) : 0);
-          drag.target = {
-            x: Math.round((drag.left - r.left) / cell),
-            y: Math.round((drag.top - r.top) / cell),
-          };
-          target = drag.target;
+          updateDragPosition(e);
           button.classList.add("dragging");
           draw();
           startFX();
