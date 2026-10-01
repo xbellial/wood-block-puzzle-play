@@ -956,6 +956,13 @@
         }
         return { rows, cols };
       }
+      // Calculate a hint on a copy; hovering must never alter the real board.
+      function previewCompletedLines(grid, shape, x, y) {
+        if (!canFit(grid, shape, x, y)) return { rows: [], cols: [] };
+        const preview = grid.map((row) => row.slice());
+        for (const [dx, dy] of shape.cells) preview[y + dy][x + dx] = 1;
+        return completedLines(preview);
+      }
       function scoreMove(blocks, rows, cols, previousStreak) {
         const n = rows + cols;
         const streak = n ? previousStreak + 1 : 0,
@@ -1388,6 +1395,26 @@
               ctx.fill();
               ctx.stroke();
             }
+            if (ok && (drag ? drag.moved : hover !== null)) {
+              const lines = previewCompletedLines(state.grid, s, t.x, t.y);
+              const rows = new Set(lines.rows), cols = new Set(lines.cols);
+              ctx.save();
+              for (let y = 0; y < n; y++) {
+                for (let x = 0; x < n; x++) {
+                  if (!rows.has(y) && !cols.has(x)) continue;
+                  // Ice is thawed by a line rather than removed: distinguish it.
+                  const ice = state.grid[y][x] === -1;
+                  ctx.fillStyle = ice ? "#8ceaff70" : "#ffda6570";
+                  ctx.strokeStyle = ice ? "#d6faff" : "#ffe8a1";
+                  ctx.lineWidth = 2;
+                  ctx.beginPath();
+                  ctx.roundRect(x * cell + 2, y * cell + 2, cell - 4, cell - 4, 3);
+                  ctx.fill();
+                  ctx.stroke();
+                }
+              }
+              ctx.restore();
+            }
           }
         }
       }
@@ -1810,7 +1837,7 @@
       }
       // Gap in CSS pixels between a finger and the bottom of the dragged shape.
       // Keep this independent of shape height so even tall pieces remain visible.
-      const TOUCH_DRAG_GAP = 32;
+      const TOUCH_DRAG_GAP = 96;
       function updateDragPosition(e) {
         const s = byId(state.tray[drag.slot]),
           w = Math.max(...s.cells.map((p) => p[0])) + 1,
@@ -1907,7 +1934,7 @@
       });
       board.addEventListener("pointerleave", () => {
         hover = null;
-        if (sawMode) draw();
+        if (sawMode || selected >= 0) draw();
       });
       board.addEventListener("pointerdown", (e) => {
         if (modalKind || e.button !== 0) return;
